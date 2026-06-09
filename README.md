@@ -20,9 +20,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
-      - uses: naavre/virtual-lab-action@main
+      - uses: NaaVRE/virtual-lab-action@main
         with:
           registry_password: ${{ secrets.GITHUB_TOKEN }}
 ```
