@@ -35,6 +35,13 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Checkout action repository
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ github.action_repository }}
+        ref: ${{ github.action_ref }}
+        path: _self
+
     - name: Configure action
       id: configure
       shell: bash
@@ -82,19 +89,19 @@ runs:
 
     - name: Build and test in CI pipeline
       if: steps.configure.outputs.action == 'build_test_on_ci'
-      uses: ./.github/actions/repo2docker-action
+      uses: ./_self/.github/actions/repo2docker-action
       with:
         registry_password: ${{ inputs.registry_password }}
 
     - name: Build on binder
       if: steps.configure.outputs.action == 'build_on_binder'
-      uses: ./.github/actions/trigger-binder-action
+      uses: ./_self/.github/actions/trigger-binder-action
       with:
         binder_launch_url: ${{ steps.configure.outputs.binder_launch_url }}
         binder_token: ${{ inputs.binder_token }}
 
     - name: Show link to run on binder
       if: steps.configure.outputs.action == 'show_link_to_binder'
-      uses: ./.github/actions/link-binder-action
+      uses: ./_self/.github/actions/link-binder-action
       with:
         binder_launch_url: ${{ steps.configure.outputs.binder_launch_url }}
