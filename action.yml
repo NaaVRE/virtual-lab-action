@@ -1,0 +1,96 @@
+name: NaaVRE Virtual Lab Action
+description: >
+  Test or deploy a NaaVRE virtual lab repository
+
+inputs:
+  action:
+    description: >
+      Action to perform:
+        - build_test_on_ci: always run build_test_on_ci.sh
+        - build_on_binder: always run build_on_binder.sh
+        - show_link_to_binder: show a link to run on binder
+        - auto: choose automatically (default)
+    required: false
+    default: auto
+
+  binder_url:
+    description: URL of the Binder instance.
+    required: false
+
+  binder_token:
+    description: Authentication token for the Binder instance.
+    required: false
+    # Pass this via ${{ secrets.BINDER_TOKEN }} at the workflow level
+
+  registry_password:
+    description: >
+      Password for ghcr.io, used for caching docker images (set it to secrets.GITHUB_TOKEN in the workflow call).
+      If empty, caching will be disabled.
+    required: false
+
+runs:
+  using: composite
+  steps:
+    - name: Configure action
+      id: configure
+      shell: bash
+      env:
+        INPUT_ACTION: ${{ inputs.action }}
+        INPUT_BINDER_URL: ${{ inputs.binder_url }}
+        GITHUB_EVENT_NAME: ${{ github.event_name }}
+        GITHUB_REF: ${{ github.ref }}
+      run: |
+        set -euo pipefail
+
+        action=""
+
+        if [[ "${INPUT_ACTION}" == "build_test_on_ci" ]]; then
+          action="build_test_on_ci"
+
+        elif [[ "${INPUT_ACTION}" == "build_on_binder" ]]; then
+          action="build_on_binder"
+
+        elif [[ "${INPUT_ACTION}" == "show_link_to_binder" ]]; then
+          action="show_link_to_binder"
+
+        elif [[ "${INPUT_ACTION}" == "auto" ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == "release" ]]; then
+            action="build_on_binder"
+          elif [[ -d "binder/tests" || -d ".binder/tests" ]]; then
+            action="build_test_on_ci"
+          else
+            action="show_link_to_binder"
+          fi
+
+        else
+          echo "::error::Unknown action value '${INPUT_ACTION}'. Valid values: auto, build_test_on_ci, build_on_binder, or show_link_to_binder."
+          exit 1
+
+        fi
+
+        echo "action=${action}" >> "$GITHUB_OUTPUT"
+        echo "Resolved action: ${action}"
+
+        binder_launch_url="${INPUT_BINDER_URL}/v2/gh/${GITHUB_REPOSITORY}/${GITHUB_REF_NAME}"
+
+        echo "binder_launch_url=${binder_launch_url}" >> "$GITHUB_OUTPUT"
+        echo "Binder launch URL: ${binder_launch_url}"
+
+    - name: Build and test in CI pipeline
+      if: steps.configure.outputs.action == 'build_test_on_ci'
+      uses: ./.github/actions/repo2docker-action
+      with:
+        registry_password: ${{ inputs.registry_password }}
+
+    - name: Build on binder
+      if: steps.configure.outputs.action == 'build_on_binder'
+      uses: ./.github/actions/trigger-binder-action
+      with:
+        binder_launch_url: ${{ steps.configure.outputs.binder_launch_url }}
+        binder_token: ${{ inputs.binder_token }}
+
+    - name: Show link to run on binder
+      if: steps.configure.outputs.action == 'show_link_to_binder'
+      uses: ./.github/actions/link-binder-action
+      with:
+        binder_launch_url: ${{ steps.configure.outputs.binder_launch_url }}

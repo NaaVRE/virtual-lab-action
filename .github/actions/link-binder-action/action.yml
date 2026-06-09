@@ -1,0 +1,89 @@
+name: link-binder-action
+description: link-binder-action
+
+inputs:
+  binder_launch_url:
+    description: URL to launch the virtual lab on the Binder instance.
+    required: true
+
+runs:
+  using: composite
+  steps:
+
+    - name: Show link to run on binder
+      uses: actions/github-script@v7
+      env:
+        INPUT_BINDER_LAUNCH_URL: ${{ inputs.binder_launch_url }}
+      with:
+        script: |
+          const MARKER = '<!-- virtual-lab-action-binder-comment -->';
+          const BRANCH = context.ref.replace(/^refs\/heads\//, '');
+          const INPUT_BINDER_LAUNCH_URL = process.env.INPUT_BINDER_LAUNCH_URL;
+          const MESSAGE =
+            '> [!WARNING]\n' +
+            '> This virtual lab could not be tested automatically, because no test files were found.\n' +
+            `> * You can manually test this version of the virtual lab on NaaVRE: [${INPUT_BINDER_LAUNCH_URL}](${INPUT_BINDER_LAUNCH_URL})\n` +
+            '> * You can enable automatic testing by adding files to `binder/tests` or `.binder/tests`. Supported extensions: `.py`, `.R`, `.sh` and `.ipynb`.';
+          const body = `${MARKER}\n${MESSAGE}`;
+
+          // Add the message to the action summary
+          core.notice(MESSAGE);
+          await core.summary.addRaw(MESSAGE).write();
+
+          // If the commit belongs to a PR, add the message as comment
+          if (!['pull_request', 'push'].includes(context.eventName)) return;
+
+          let prNumber;
+
+          if (context.eventName === 'pull_request') {
+            prNumber = context.payload.pull_request.number;
+
+          } else {
+            const { data: pullRequests } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              head: `${BRANCH}`,
+            });
+
+            if (pullRequests.length === 0) {
+              core.info(`No open PR found for branch '${BRANCH}'. Skipping PR comment.`);
+              return;
+            }
+
+            // Use the latest PR if there are multiple
+            prNumber = pullRequests[0].number;
+          }
+
+          core.info(`Commenting on PR #${prNumber}`);
+
+          // Find an existing comment
+          const comments = await github.paginate(
+            github.rest.issues.listComments,
+            {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            }
+          );
+
+          const existing = comments.find(c => c.body.startsWith(MARKER));
+
+          // Create or update comment
+          if (existing) {
+            core.info(`Updating existing comment ${existing.id}`);
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existing.id,
+              body,
+            });
+          } else {
+            core.info('Creating new comment');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body,
+            });
+          }
