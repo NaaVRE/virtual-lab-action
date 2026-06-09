@@ -35,11 +35,21 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Set current action data
+      id: set-action-data
+      run: |
+        echo "action_repository=$ACTION_REPOSITORY" >> $GITHUB_OUTPUT
+        echo "action_ref=$ACTION_REF" >> $GITHUB_OUTPUT
+      shell: bash
+      env:
+        ACTION_REPOSITORY: ${{ github.action_repository }}
+        ACTION_REF: ${{ github.action_ref }}
+
     - name: Checkout action repository
       uses: actions/checkout@v4
       with:
-        repository: ${{ github.action_repository }}
-        ref: ${{ github.action_ref }}
+        repository: ${{ steps.set-action-data.outputs.action_repository }}
+        ref: ${{ steps.set-action-data.outputs.action_ref }}
         path: _self
 
     - name: Configure action
