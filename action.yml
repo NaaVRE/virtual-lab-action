@@ -2,6 +2,10 @@ name: NaaVRE Virtual Lab Action
 description: >
   Test or deploy a NaaVRE virtual lab repository
 
+branding:
+  icon: 'package'
+  color: 'green'
+
 inputs:
   action:
     description: >
