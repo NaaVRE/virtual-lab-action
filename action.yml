@@ -20,7 +20,7 @@ inputs:
   binder_url:
     description: URL of the Binder instance.
     required: false
-    default: https://naavre-dev.minikube.test/binderhub
+    default: https://binder-poc.naavre.net/binderhub
 
   binder_token:
     description: Authentication token for the Binder instance.
