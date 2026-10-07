@@ -10,8 +10,10 @@ Next, add a file named `.github/workflows/virtual-lab.yaml` to your repository:
 name: Build, test and publish Virtual Lab
 on:
   push:
+    branches:
+      - '**'
   release:
-  pull_request:
+    types: [published]
 
 permissions:
   packages: write
