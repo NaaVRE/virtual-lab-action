@@ -16,6 +16,7 @@ on:
     types: [published]
 
 permissions:
+  contents: write
   packages: write
   pull-requests: write
 
