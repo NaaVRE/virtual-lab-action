@@ -29,7 +29,7 @@ inputs:
 
   naavre_build_token:
     description: >
-      Authentication token for the NaaVRE build service (set to ${{ secrets.NAAVRE_BUILD_TOKEN }})
+      Authentication token for the NaaVRE build service (set to `\$\{\{ secrets.NAAVRE_BUILD_TOKEN \}\}`)
     required: true
 
   registry_password:
