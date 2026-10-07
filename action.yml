@@ -100,7 +100,7 @@ runs:
         echo "Resolved action: ${action}"
 
         binder_launch_repo_url="${INPUT_BINDER_URL}/v2/gh/${GITHUB_REPOSITORY}/${GITHUB_REF_NAME}"
-        naavre_build_repo_url="${INPUT_NAAVRE_BUILD_URL}/gh/${GITHUB_REPOSITORY}/${GITHUB_REF_NAME}"
+        naavre_build_repo_url="${INPUT_NAAVRE_BUILD_URL}/gh/${GITHUB_REPOSITORY}/latest"
 
         echo "binder_launch_repo_url=${binder_launch_repo_url}" >> "$GITHUB_OUTPUT"
         echo "naavre_build_repo_url=${naavre_build_repo_url}" >> "$GITHUB_OUTPUT"
