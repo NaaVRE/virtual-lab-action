@@ -1,5 +1,5 @@
-name: repo2docker-action
-description: repo2docker-action
+name: build-test-on-ci-action
+description: build-test-on-ci-action
 
 inputs:
   registry_password:
@@ -11,6 +11,7 @@ runs:
   steps:
     - name: Set environment
       shell: bash
+      # language=bash
       run: |
         echo "USER_ID=1000" | tee -a $GITHUB_ENV
         echo "NB_USER=jovyan" | tee -a $GITHUB_ENV
@@ -29,11 +30,13 @@ runs:
 
     - name: Install repo2docker
       shell: bash
+      # language=bash
       run: |
         pip install jupyter-repo2docker==2026.4.0
 
     - name: Build image
       shell: bash
+      # language=bash
       run: |
         jupyter-repo2docker \
           --no-run \
@@ -51,11 +54,13 @@ runs:
     - name: Push image
       if: ${{ inputs.registry_password != '' }}
       shell: bash
+      # language=bash
       run: |
         docker push ${IMAGE_NAME}
 
     - name: Run tests
       shell: bash
+      # language=bash
       run: |
         set -e
 

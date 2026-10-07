@@ -10,8 +10,8 @@ inputs:
   action:
     description: >
       Action to perform:
-        - build_test_on_ci: always run build_test_on_ci.sh
-        - build_on_binder: always run build_on_binder.sh
+        - build_test_on_ci: build and test on the repo's CI runner
+        - build_on_naavre: build on NaaVRE
         - show_link_to_binder: show a link to run on binder
         - auto: choose automatically (default)
     required: false
@@ -22,10 +22,15 @@ inputs:
     required: false
     default: https://binder-poc.naavre.net/binderhub
 
-  binder_token:
-    description: Authentication token for the Binder instance.
+  naavre_build_url:
+    description: URL of the NaaVRE build service.
     required: false
-    # Pass this via ${{ secrets.BINDER_TOKEN }} at the workflow level
+    default: https://binder-poc.naavre.net/naavre-environment-service/build
+
+  naavre_build_token:
+    description: >
+      Authentication token for the NaaVRE build service (set to `\$\{\{ secrets.NAAVRE_BUILD_TOKEN \}\}`)
+    required: true
 
   registry_password:
     description: >
@@ -59,6 +64,7 @@ runs:
       env:
         INPUT_ACTION: ${{ inputs.action }}
         INPUT_BINDER_URL: ${{ inputs.binder_url }}
+        INPUT_NAAVRE_BUILD_URL: ${{ inputs.naavre_build_url }}
         GITHUB_EVENT_NAME: ${{ github.event_name }}
         GITHUB_REF: ${{ github.ref }}
       run: |
@@ -69,15 +75,15 @@ runs:
         if [[ "${INPUT_ACTION}" == "build_test_on_ci" ]]; then
           action="build_test_on_ci"
 
-        elif [[ "${INPUT_ACTION}" == "build_on_binder" ]]; then
-          action="build_on_binder"
+        elif [[ "${INPUT_ACTION}" == "build_on_naavre" ]]; then
+          action="build_on_naavre"
 
         elif [[ "${INPUT_ACTION}" == "show_link_to_binder" ]]; then
           action="show_link_to_binder"
 
         elif [[ "${INPUT_ACTION}" == "auto" ]]; then
           if [[ "${GITHUB_EVENT_NAME}" == "release" ]]; then
-            action="build_on_binder"
+            action="build_on_naavre"
           elif [[ -d "binder/tests" || -d ".binder/tests" ]]; then
             action="build_test_on_ci"
           else
@@ -85,7 +91,7 @@ runs:
           fi
 
         else
-          echo "::error::Unknown action value '${INPUT_ACTION}'. Valid values: auto, build_test_on_ci, build_on_binder, or show_link_to_binder."
+          echo "::error::Unknown action value '${INPUT_ACTION}'. Valid values: auto, build_test_on_ci, build_on_naavre, or show_link_to_binder."
           exit 1
 
         fi
@@ -93,26 +99,29 @@ runs:
         echo "action=${action}" >> "$GITHUB_OUTPUT"
         echo "Resolved action: ${action}"
 
-        binder_launch_url="${INPUT_BINDER_URL}/v2/gh/${GITHUB_REPOSITORY}/${GITHUB_REF_NAME}"
+        binder_launch_repo_url="${INPUT_BINDER_URL}/v2/gh/${GITHUB_REPOSITORY}/${GITHUB_REF_NAME}"
+        naavre_build_repo_url="${INPUT_NAAVRE_BUILD_URL}/gh/${GITHUB_REPOSITORY}/${GITHUB_REF_NAME}"
 
-        echo "binder_launch_url=${binder_launch_url}" >> "$GITHUB_OUTPUT"
-        echo "Binder launch URL: ${binder_launch_url}"
+        echo "binder_launch_repo_url=${binder_launch_repo_url}" >> "$GITHUB_OUTPUT"
+        echo "naavre_build_repo_url=${naavre_build_repo_url}" >> "$GITHUB_OUTPUT"
+        echo "Binder launch URL: ${binder_launch_repo_url}"
+        echo "NaaVRE build URL: ${naavre_build_repo_url}"
 
     - name: Build and test in CI pipeline
       if: steps.configure.outputs.action == 'build_test_on_ci'
-      uses: ./_self/.github/actions/repo2docker-action
+      uses: ./_self/.github/actions/build-test-on-ci-action
       with:
         registry_password: ${{ inputs.registry_password }}
 
-    - name: Build on binder
-      if: steps.configure.outputs.action == 'build_on_binder'
-      uses: ./_self/.github/actions/trigger-binder-action
+    - name: Build on NaaVRE
+      if: steps.configure.outputs.action == 'build_on_naavre'
+      uses: ./_self/.github/actions/build-on-naavre-action
       with:
-        binder_launch_url: ${{ steps.configure.outputs.binder_launch_url }}
-        binder_token: ${{ inputs.binder_token }}
+        naavre_build_repo_url: ${{ steps.configure.outputs.naavre_build_repo_url }}
+        naavre_build_token: ${{ inputs.naavre_build_token }}
 
     - name: Show link to run on binder
       if: steps.configure.outputs.action == 'show_link_to_binder'
-      uses: ./_self/.github/actions/link-binder-action
+      uses: ./_self/.github/actions/show-link-to-binder-action
       with:
-        binder_launch_url: ${{ steps.configure.outputs.binder_launch_url }}
+        binder_launch_repo_url: ${{ steps.configure.outputs.binder_launch_repo_url }}
