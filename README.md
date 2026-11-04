@@ -12,6 +12,8 @@ on:
   push:
     branches:
       - '**'
+  pull_request:
+    types: [opened, reopened]
   release:
     types: [published]
 
