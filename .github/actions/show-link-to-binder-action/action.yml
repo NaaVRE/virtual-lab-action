@@ -67,19 +67,24 @@ runs:
             prNumber = context.payload.pull_request.number;
 
           } else {
-            const { data: pullRequests } = await github.rest.pulls.list({
+            const { data: associatedPullRequests } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              state: 'open',
-              head: `${context.repo.owner}:${BRANCH}`,
+              commit_sha: context.sha,
             });
 
+            // Only consider open PRs of this repository whose head is the pushed commit
+            const repoFullName = `${context.repo.owner}/${context.repo.repo}`.toLowerCase();
+            const openPullRequests = associatedPullRequests.filter(pr => pr.state === 'open' && pr.head.sha === context.sha);
+            const pullRequests = openPullRequests.filter(pr => pr.base.repo.full_name.toLowerCase() === repoFullName);
+
             if (pullRequests.length === 0) {
-              core.info(`No open PR found for branch '${BRANCH}'. Skipping PR comment.`);
+              core.info(`No open PR found for commit ${context.sha} in this repo. Skipping PR comment.`);
               return;
             }
 
             // Use the latest PR if there are multiple
+            pullRequests.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
             prNumber = pullRequests[0].number;
           }
 
