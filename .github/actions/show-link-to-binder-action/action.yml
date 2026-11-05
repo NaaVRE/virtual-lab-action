@@ -32,9 +32,6 @@ runs:
           const INPUT_BINDER_LAUNCH_REPO_URL = process.env.INPUT_BINDER_LAUNCH_REPO_URL;
           const INPUT_MESSAGE_KIND = process.env.INPUT_MESSAGE_KIND;
           const LINK = `[${INPUT_BINDER_LAUNCH_REPO_URL}](${INPUT_BINDER_LAUNCH_REPO_URL})`;
-          const RUN_URL =
-            `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}` +
-            `/attempts/${process.env.GITHUB_RUN_ATTEMPT}`;
           const MESSAGES = {
             link_only:
               '> [!TIP]\n' +
@@ -47,7 +44,7 @@ runs:
             has_tests:
               '> [!NOTE]\n' +
               '> This virtual lab can be tested automatically.\n' +
-              `> * You can view the testing logs: [${RUN_URL}](${RUN_URL})\n` +
+              `> * Tests status and logs are reported by GitHub actions.\n` +
               `> * You can do additional manual testing of this version of the virtual lab on NaaVRE: ${LINK}`,
           };
           if (!(INPUT_MESSAGE_KIND in MESSAGES)) {
