@@ -13,7 +13,7 @@ on:
     branches:
       - '**'
   pull_request:
-    types: [opened, reopened]
+    types: [opened]
   release:
     types: [published]
 

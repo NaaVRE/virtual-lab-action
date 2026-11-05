@@ -9,10 +9,11 @@ inputs:
   message_kind:
     description: >
       Kind of message to display:
-        - tests_warning: the virtual lab could not be tested automatically (default)
-        - tests_info: the virtual lab has been tested automatically
+        - link_only: only show a link to binder (default)
+        - no_tests: the virtual lab cannot be tested automatically
+        - has_tests: the virtual lab can be tested automatically
     required: false
-    default: tests_warning
+    default: link_only
 
 runs:
   using: composite
@@ -35,15 +36,18 @@ runs:
             `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}` +
             `/attempts/${process.env.GITHUB_RUN_ATTEMPT}`;
           const MESSAGES = {
-            tests_warning:
+            link_only:
+              '> [!TIP]\n' +
+              `> You can launch this version of the virtual lab on NaaVRE: ${LINK}`,
+            no_tests:
               '> [!WARNING]\n' +
               '> This virtual lab could not be tested automatically, because no test files were found.\n' +
               `> * You can manually test this version of the virtual lab on NaaVRE: ${LINK}\n` +
               '> * You can enable automatic testing by adding files to `binder/tests` or `.binder/tests`. Supported extensions: `.py`, `.R`, `.sh` and `.ipynb`.',
-            tests_info:
+            has_tests:
               '> [!NOTE]\n' +
-              '> This virtual lab has been tested automatically.\n' +
-              `> * You can view the CI testing logs: [${RUN_URL}](${RUN_URL})\n` +
+              '> This virtual lab can be tested automatically.\n' +
+              `> * You can view the testing logs: [${RUN_URL}](${RUN_URL})\n` +
               `> * You can do additional manual testing of this version of the virtual lab on NaaVRE: ${LINK}`,
           };
           if (!(INPUT_MESSAGE_KIND in MESSAGES)) {

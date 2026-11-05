@@ -73,6 +73,18 @@ runs:
         set -euo pipefail
 
         action=""
+        message_kind=""
+
+        has_tests=false
+        if [[ -d "binder/tests" || -d ".binder/tests" ]]; then
+          has_tests=true
+        fi
+
+        if [[ "${has_tests}" == "true" ]]; then
+          message_kind="has_tests"
+        else
+          message_kind="no_tests"
+        fi
 
         if [[ "${INPUT_ACTION}" == "build_test_on_ci" ]]; then
           action="build_test_on_ci"
@@ -82,32 +94,35 @@ runs:
 
         elif [[ "${INPUT_ACTION}" == "show_link_to_binder" ]]; then
           action="show_link_to_binder"
+          message_kind="link_only"
 
         elif [[ "${INPUT_ACTION}" == "auto" ]]; then
-          has_tests=false
-          if [[ -d "binder/tests" || -d ".binder/tests" ]]; then
-            has_tests=true
-          fi
 
           if [[ "${GITHUB_EVENT_NAME}" == "release" ]]; then
             action="build_on_naavre"
-          elif [[ "${has_tests}" == "true" ]]; then
-            action="build_test_on_ci"
-          else
+
+          elif [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            if [[ "${has_tests}" == "true" ]]; then
+              action="build_test_on_ci"
+            else
+              action="show_link_to_binder"
+            fi
+
+          elif [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            # Add comment to newly created PRs (the PR may not have existed
+            # when the branch was pushed). Pushes to the PR branch are already
+            # handled by the push event.
             action="show_link_to_binder"
+
+          else
+            echo "::error::Unsupported trigger event for 'auto' mode: ${GITHUB_EVENT_NAME}."
+            exit 1
           fi
 
         else
           echo "::error::Unknown action value '${INPUT_ACTION}'. Valid values: auto, build_test_on_ci, build_on_naavre, or show_link_to_binder."
           exit 1
 
-        fi
-
-        # Kind of message displayed by show-link-to-binder-action
-        if [[ "${action}" == "build_test_on_ci" ]]; then
-          message_kind="tests_info"
-        else
-          message_kind="tests_warning"
         fi
 
         echo "action=${action}" >> "$GITHUB_OUTPUT"
@@ -133,6 +148,15 @@ runs:
         echo "Binder launch URL: ${binder_launch_repo_url}"
         echo "NaaVRE build URL: ${naavre_build_repo_url}"
 
+    - name: Show link to run on binder
+      if: >-
+        steps.configure.outputs.action == 'show_link_to_binder'
+        || steps.configure.outputs.action == 'build_test_on_ci'
+      uses: ./_self/.github/actions/show-link-to-binder-action
+      with:
+        binder_launch_repo_url: ${{ steps.configure.outputs.binder_launch_repo_url }}
+        message_kind: ${{ steps.configure.outputs.message_kind }}
+
     - name: Build and test in CI pipeline
       if: steps.configure.outputs.action == 'build_test_on_ci'
       uses: ./_self/.github/actions/build-test-on-ci-action
@@ -145,12 +169,3 @@ runs:
       with:
         naavre_build_repo_url: ${{ steps.configure.outputs.naavre_build_repo_url }}
         naavre_build_token: ${{ inputs.naavre_build_token }}
-
-    - name: Show link to run on binder
-      if: >-
-        steps.configure.outputs.action == 'show_link_to_binder'
-        || steps.configure.outputs.action == 'build_test_on_ci'
-      uses: ./_self/.github/actions/show-link-to-binder-action
-      with:
-        binder_launch_repo_url: ${{ steps.configure.outputs.binder_launch_repo_url }}
-        message_kind: ${{ steps.configure.outputs.message_kind }}
