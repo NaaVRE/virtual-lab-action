@@ -67,6 +67,8 @@ runs:
         INPUT_NAAVRE_BUILD_URL: ${{ inputs.naavre_build_url }}
         GITHUB_EVENT_NAME: ${{ github.event_name }}
         GITHUB_REF: ${{ github.ref }}
+        PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+        PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
       run: |
         set -euo pipefail
 
@@ -82,9 +84,23 @@ runs:
           action="show_link_to_binder"
 
         elif [[ "${INPUT_ACTION}" == "auto" ]]; then
+          has_tests=false
+          if [[ -d "binder/tests" || -d ".binder/tests" ]]; then
+            has_tests=true
+          fi
+
           if [[ "${GITHUB_EVENT_NAME}" == "release" ]]; then
             action="build_on_naavre"
-          elif [[ -d "binder/tests" || -d ".binder/tests" ]]; then
+          elif [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            # Pushes to the PR branch are already handled by the push event.
+            # On pull_request, we only need to comment on the PR when no tests
+            # are found (the PR may not have existed when the branch was pushed).
+            if [[ "${has_tests}" == "true" ]]; then
+              action="none"
+            else
+              action="show_link_to_binder"
+            fi
+          elif [[ "${has_tests}" == "true" ]]; then
             action="build_test_on_ci"
           else
             action="show_link_to_binder"
@@ -99,13 +115,29 @@ runs:
         echo "action=${action}" >> "$GITHUB_OUTPUT"
         echo "Resolved action: ${action}"
 
-        binder_launch_repo_url="${INPUT_BINDER_URL}/v2/gh/${GITHUB_REPOSITORY}/${GITHUB_REF_NAME}"
+        # On pull_request events, GITHUB_REF_NAME is '<pr_number>/merge', so use
+        # the PR head repository and branch instead.
+        if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+          binder_repo="${PR_HEAD_REPOSITORY}"
+          binder_ref="${PR_HEAD_REF}"
+        else
+          binder_repo="${GITHUB_REPOSITORY}"
+          binder_ref="${GITHUB_REF_NAME}"
+        fi
+
+        binder_launch_repo_url="${INPUT_BINDER_URL}/v2/gh/${binder_repo}/${binder_ref}"
         naavre_build_repo_url="${INPUT_NAAVRE_BUILD_URL}/gh/${GITHUB_REPOSITORY}/latest"
 
         echo "binder_launch_repo_url=${binder_launch_repo_url}" >> "$GITHUB_OUTPUT"
         echo "naavre_build_repo_url=${naavre_build_repo_url}" >> "$GITHUB_OUTPUT"
         echo "Binder launch URL: ${binder_launch_repo_url}"
         echo "NaaVRE build URL: ${naavre_build_repo_url}"
+
+    - name: Nothing to do
+      if: steps.configure.outputs.action == 'none'
+      shell: bash
+      run: |
+        echo "Nothing to do for this event: tests are run on push."
 
     - name: Build and test in CI pipeline
       if: steps.configure.outputs.action == 'build_test_on_ci'
