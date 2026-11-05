@@ -91,15 +91,6 @@ runs:
 
           if [[ "${GITHUB_EVENT_NAME}" == "release" ]]; then
             action="build_on_naavre"
-          elif [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
-            # Pushes to the PR branch are already handled by the push event.
-            # On pull_request, we only need to comment on the PR when no tests
-            # are found (the PR may not have existed when the branch was pushed).
-            if [[ "${has_tests}" == "true" ]]; then
-              action="none"
-            else
-              action="show_link_to_binder"
-            fi
           elif [[ "${has_tests}" == "true" ]]; then
             action="build_test_on_ci"
           else
@@ -112,8 +103,17 @@ runs:
 
         fi
 
+        # Kind of message displayed by show-link-to-binder-action
+        if [[ "${action}" == "build_test_on_ci" ]]; then
+          message_kind="tests_info"
+        else
+          message_kind="tests_warning"
+        fi
+
         echo "action=${action}" >> "$GITHUB_OUTPUT"
+        echo "message_kind=${message_kind}" >> "$GITHUB_OUTPUT"
         echo "Resolved action: ${action}"
+        echo "Message kind: ${message_kind}"
 
         # On pull_request events, GITHUB_REF_NAME is '<pr_number>/merge', so use
         # the PR head repository and branch instead.
@@ -133,12 +133,6 @@ runs:
         echo "Binder launch URL: ${binder_launch_repo_url}"
         echo "NaaVRE build URL: ${naavre_build_repo_url}"
 
-    - name: Nothing to do
-      if: steps.configure.outputs.action == 'none'
-      shell: bash
-      run: |
-        echo "Nothing to do for this event: tests are run on push."
-
     - name: Build and test in CI pipeline
       if: steps.configure.outputs.action == 'build_test_on_ci'
       uses: ./_self/.github/actions/build-test-on-ci-action
@@ -153,7 +147,10 @@ runs:
         naavre_build_token: ${{ inputs.naavre_build_token }}
 
     - name: Show link to run on binder
-      if: steps.configure.outputs.action == 'show_link_to_binder'
+      if: >-
+        steps.configure.outputs.action == 'show_link_to_binder'
+        || steps.configure.outputs.action == 'build_test_on_ci'
       uses: ./_self/.github/actions/show-link-to-binder-action
       with:
         binder_launch_repo_url: ${{ steps.configure.outputs.binder_launch_repo_url }}
+        message_kind: ${{ steps.configure.outputs.message_kind }}
