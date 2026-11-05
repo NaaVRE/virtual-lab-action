@@ -6,6 +6,15 @@ inputs:
     description: URL to launch the repo on the Binder instance.
     required: true
 
+  message_kind:
+    description: >
+      Kind of message to display:
+        - link_only: only show a link to binder (default)
+        - no_tests: the virtual lab cannot be tested automatically
+        - has_tests: the virtual lab can be tested automatically
+    required: false
+    default: link_only
+
 runs:
   using: composite
   steps:
@@ -14,17 +23,35 @@ runs:
       uses: actions/github-script@v7
       env:
         INPUT_BINDER_LAUNCH_REPO_URL: ${{ inputs.binder_launch_repo_url }}
+        INPUT_MESSAGE_KIND: ${{ inputs.message_kind }}
       with:
         # language=javascript
         script: |
           const MARKER = '<!-- virtual-lab-action-binder-comment -->';
           const BRANCH = context.ref.replace(/^refs\/heads\//, '');
           const INPUT_BINDER_LAUNCH_REPO_URL = process.env.INPUT_BINDER_LAUNCH_REPO_URL;
-          const MESSAGE =
-            '> [!WARNING]\n' +
-            '> This virtual lab could not be tested automatically, because no test files were found.\n' +
-            `> * You can manually test this version of the virtual lab on NaaVRE: [${INPUT_BINDER_LAUNCH_REPO_URL}](${INPUT_BINDER_LAUNCH_REPO_URL})\n` +
-            '> * You can enable automatic testing by adding files to `binder/tests` or `.binder/tests`. Supported extensions: `.py`, `.R`, `.sh` and `.ipynb`.';
+          const INPUT_MESSAGE_KIND = process.env.INPUT_MESSAGE_KIND;
+          const LINK = `[${INPUT_BINDER_LAUNCH_REPO_URL}](${INPUT_BINDER_LAUNCH_REPO_URL})`;
+          const MESSAGES = {
+            link_only:
+              '> [!TIP]\n' +
+              `> You can launch this version of the virtual lab on NaaVRE: ${LINK}`,
+            no_tests:
+              '> [!WARNING]\n' +
+              '> This virtual lab could not be tested automatically, because no test files were found.\n' +
+              `> * You can manually test this version of the virtual lab on NaaVRE: ${LINK}\n` +
+              '> * You can enable automatic testing by adding files to `binder/tests` or `.binder/tests`. Supported extensions: `.py`, `.R`, `.sh` and `.ipynb`.',
+            has_tests:
+              '> [!NOTE]\n' +
+              '> This virtual lab can be tested automatically.\n' +
+              `> * Tests status and logs are reported by GitHub actions.\n` +
+              `> * You can do additional manual testing of this version of the virtual lab on NaaVRE: ${LINK}`,
+          };
+          if (!(INPUT_MESSAGE_KIND in MESSAGES)) {
+            core.setFailed(`Unknown message_kind '${INPUT_MESSAGE_KIND}'. Valid values: ${Object.keys(MESSAGES).join(', ')}.`);
+            return;
+          }
+          const MESSAGE = MESSAGES[INPUT_MESSAGE_KIND];
           const body = `${MARKER}\n${MESSAGE}`;
 
           // Add the message to the action summary
@@ -40,19 +67,24 @@ runs:
             prNumber = context.payload.pull_request.number;
 
           } else {
-            const { data: pullRequests } = await github.rest.pulls.list({
+            const { data: associatedPullRequests } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              state: 'open',
-              head: `${context.repo.owner}:${BRANCH}`,
+              commit_sha: context.sha,
             });
 
+            // Only consider open PRs of this repository whose head is the pushed commit
+            const repoFullName = `${context.repo.owner}/${context.repo.repo}`.toLowerCase();
+            const openPullRequests = associatedPullRequests.filter(pr => pr.state === 'open' && pr.head.sha === context.sha);
+            const pullRequests = openPullRequests.filter(pr => pr.base.repo.full_name.toLowerCase() === repoFullName);
+
             if (pullRequests.length === 0) {
-              core.info(`No open PR found for branch '${BRANCH}'. Skipping PR comment.`);
+              core.info(`No open PR found for commit ${context.sha} in this repo. Skipping PR comment.`);
               return;
             }
 
             // Use the latest PR if there are multiple
+            pullRequests.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
             prNumber = pullRequests[0].number;
           }
 
